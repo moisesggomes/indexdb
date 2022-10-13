@@ -1,0 +1,28 @@
+{
+  "name": "indexdb",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "build": "npx tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moisesggomes/indexdb.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/moisesggomes/indexdb/issues"
+  },
+  "homepage": "https://github.com/moisesggomes/indexdb#readme",
+  "devDependencies": {
+    "nodemon": "^2.0.20",
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
