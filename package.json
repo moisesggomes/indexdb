@@ -19,8 +19,7 @@
   },
   "homepage": "https://github.com/moisesggomes/indexdb#readme",
   "devDependencies": {
-    "nodemon": "^2.0.20",
-    "typescript": "^4.8.4"
+    "nodemon": "^2.0.20"
   },
   "dependencies": {
     "express": "^4.18.2"
