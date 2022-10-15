@@ -20,11 +20,13 @@ class Person {
     }
 }
 
+const h1 = document.querySelector("h1");
+const fileInput = document.querySelector("input[type='file']");
+
 const DB_NAME = "db-test";
 
 async function main() {
-    // const result = await createObjectStore("people", "id");
-    // console.log(result);
+    
 }
 
 async function createObjectStore(storeName, keyPath) {
@@ -43,11 +45,15 @@ async function createObjectStore(storeName, keyPath) {
             } else {
                 db.createObjectStore(storeName);
             }
-            resolve(`Store "${storeName}" successfully created!`);
+            const successfullyCreatedMessage = `Store "${storeName}" successfully created!`;
+            console.log(successfullyCreatedMessage);
+            resolve(successfullyCreatedMessage);
         };
 
         request.onerror = (event) => {
-            reject("Couldn't create store");
+            const errorMessage = "Couldn't create store";
+            console.log(errorMessage);
+            reject(errorMessage);
         };
     });
 
@@ -72,11 +78,15 @@ async function addData(data, dbName, objectStoreName) {
             const requestAdd = objectStore.add(data);
 
             requestAdd.onsuccess = (event) => {
-                resolve(`Data successfully added to "${objectStoreName}" store`);
+                const successMessage = `Data successfully added to "${objectStoreName}" store`;
+                console.log(successMessage);
+                resolve(successMessage);
             }
 
             requestAdd.onerror = (event) => {
-                reject(new Error(`Couldn't add the data to "${objectStoreName}" store`));
+                const errorMessage = `Couldn't add the data to "${objectStoreName}" store`;
+                console.log(errorMessage);
+                reject(new Error(errorMessage));
             }
         }
 
@@ -91,6 +101,21 @@ async function addData(data, dbName, objectStoreName) {
         console.error(error);
         return error;
     }
+}
+
+function getFile(event) {
+    return fileInput.files[0];
+}
+
+async function saveFile() {
+    addData(
+        {
+            file: getFile(),
+            id: Math.random().toString(36).slice(2, 15)
+        },
+        DB_NAME,
+        "files"
+    );
 }
 
 main();
