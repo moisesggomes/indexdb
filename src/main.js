@@ -24,27 +24,57 @@ const h1 = document.querySelector("h1");
 const fileInput = document.querySelector("input[type='file']");
 
 const DB_NAME = "db-test";
+let DATABASE;
 
 async function main() {
     
 }
 
+async function openDatabase(dbName) {
+    const result = new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName);
+    
+        request.onsuccess = (event) => {
+            console.log("Database opened!");
+
+            request.result.onerror = () => console.log("Error in the database!");
+
+            resolve(request.result);
+        };
+    
+        request.onupgradeneeded = (event) => console.log("Upgrade needed!");
+    
+        request.onerror = (event) => {
+            console.log("Error with the database!");
+            reject("Error with the database!");
+        };
+    });
+
+    try {
+        return await result
+    } catch(error) {
+        return error;
+    }
+}
+
+async function getDatabaseVersion(dbName) {
+    const databases = await indexedDB.databases();
+    const databaseInfo = databases.find((value) => value.name == dbName);
+    if (databaseInfo) return databaseInfo.version;
+    return -1;
+}
+
 async function createObjectStore(storeName, keyPath) {
     const result = new Promise(async (resolve, reject) => {
-        const databases = await indexedDB.databases();
-        const actualDB = databases.find((value) => value.name === DB_NAME);
-        const newVersion = actualDB?.version ? actualDB?.version + 1 : 1 ;
-
-        console.log("DB_NAME:", DB_NAME, "\nnewVersion:", newVersion);
-        const request = indexedDB.open(DB_NAME, newVersion);
+        const actualDBVersion = await getDatabaseVersion(DB_NAME);
+        const request = indexedDB.open(DB_NAME, actualDBVersion + 1);
 
         request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (keyPath) {
-                db.createObjectStore(storeName, { keyPath });
-            } else {
-                db.createObjectStore(storeName);
-            }
+            const database = request.result;
+
+            if (keyPath) database.createObjectStore(storeName, { keyPath });
+            else database.createObjectStore(storeName, { autoIncrement: true });
+
             const successfullyCreatedMessage = `Store "${storeName}" successfully created!`;
             console.log(successfullyCreatedMessage);
             resolve(successfullyCreatedMessage);
@@ -65,33 +95,22 @@ async function createObjectStore(storeName, keyPath) {
     }
 }
 
-async function addData(data, dbName, objectStoreName) {
+async function addData(database, data, objectStoreName) {
     const result = new Promise((resolve, reject) => {
-        let db;
-        const request = indexedDB.open(dbName);
+        const transaction = database.transaction(objectStoreName, "readwrite");
+        const objectStore = transaction.objectStore(objectStoreName);
+        const action = objectStore.add(data);
 
-        request.onsuccess = (event) => {
-            db = request.result;
-
-            const transaction = db.transaction(objectStoreName, "readwrite");
-            const objectStore = transaction.objectStore(objectStoreName);
-            const requestAdd = objectStore.add(data);
-
-            requestAdd.onsuccess = (event) => {
-                const successMessage = `Data successfully added to "${objectStoreName}" store`;
-                console.log(successMessage);
-                resolve(successMessage);
-            }
-
-            requestAdd.onerror = (event) => {
-                const errorMessage = `Couldn't add the data to "${objectStoreName}" store`;
-                console.log(errorMessage);
-                reject(new Error(errorMessage));
-            }
+        action.onsuccess = (event) => {
+            const successMessage = `Data successfully added to "${objectStoreName}" store`;
+            console.log(successMessage);
+            resolve(successMessage);
         }
 
-        request.onerror = (event) => {
-            reject(new Error("Couldn't open", dbName, "database"));
+        action.onerror = (event) => {
+            const errorMessage = `Couldn't add the data to "${objectStoreName}" store`;
+            console.log(errorMessage);
+            reject(new Error(errorMessage));
         }
     });
 
@@ -101,21 +120,6 @@ async function addData(data, dbName, objectStoreName) {
         console.error(error);
         return error;
     }
-}
-
-function getFile(event) {
-    return fileInput.files[0];
-}
-
-async function saveFile() {
-    addData(
-        {
-            file: getFile(),
-            id: Math.random().toString(36).slice(2, 15)
-        },
-        DB_NAME,
-        "files"
-    );
 }
 
 main();
