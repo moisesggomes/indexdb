@@ -20,41 +20,67 @@ class Person {
     }
 }
 
-const h1 = document.querySelector("h1");
-const fileInput = document.querySelector("input[type='file']");
-
 const DB_NAME = "db-test";
-let DATABASE;
-
-async function main() {
-    
-}
 
 async function openDatabase(dbName) {
-    const result = new Promise((resolve, reject) => {
-        const request = indexedDB.open(dbName);
-    
-        request.onsuccess = (event) => {
-            console.log("Database opened!");
-
-            request.result.onerror = () => console.log("Error in the database!");
-
-            resolve(request.result);
-        };
-    
-        request.onupgradeneeded = (event) => console.log("Upgrade needed!");
-    
-        request.onerror = (event) => {
-            console.log("Error with the database!");
-            reject("Error with the database!");
-        };
-    });
-
     try {
-        return await result
-    } catch(error) {
-        return error;
-    }
+        return await new Promise((resolve, reject) => {
+            const request = indexedDB.open(dbName);
+            request.onsuccess = (event) => {
+                setGenericErrorHandlerToDatabase(request.result);
+                resolve(request.result);
+            };
+            request.onerror = (event) => {
+                console.error("Couldn't open the database");
+            };
+        });
+    } catch (error) {}
+}
+
+function setGenericErrorHandlerToDatabase(db) {
+    db.onerror = (event) => console.error(`Database error: ${event.target.error}`);
+}
+
+async function createObjectStore(database, storeName, options) {
+    try {
+        return await new Promise(async (resolve, reject) => {
+            const actualDBVersion = await getDatabaseVersion(database.name);
+            database.close();
+            const request = indexedDB.open(database.name, actualDBVersion + 1);
+
+            request.onupgradeneeded = (event) => {
+                const database = request.result;
+                setGenericErrorHandlerToDatabase(database);
+                database.createObjectStore(storeName, options);
+                resolve(database);
+            };
+            request.onerror = (event) => {
+                console.error("Couldn't update the database");
+                reject();
+            };
+        });
+    } catch (error) {}
+}
+
+async function deleteObjectStore(database, storeName) {
+    try {
+        return await new Promise(async (resolve, reject) => {
+            const actualDBVersion = await getDatabaseVersion(database.name);
+            database.close();
+            const request = indexedDB.open(database.name, actualDBVersion + 1);
+
+            request.onupgradeneeded = (event) => {
+                const database = request.result;
+                setGenericErrorHandlerToDatabase(database);
+                database.deleteObjectStore(storeName);
+                resolve(database);
+            };
+            request.onerror = (event) => {
+                console.error("Couldn't delete the database");
+                reject();
+            };
+        });
+    } catch (error) {}
 }
 
 async function getDatabaseVersion(dbName) {
@@ -64,62 +90,18 @@ async function getDatabaseVersion(dbName) {
     return -1;
 }
 
-async function createObjectStore(storeName, keyPath) {
-    const result = new Promise(async (resolve, reject) => {
-        const actualDBVersion = await getDatabaseVersion(DB_NAME);
-        const request = indexedDB.open(DB_NAME, actualDBVersion + 1);
-
-        request.onupgradeneeded = (event) => {
-            const database = request.result;
-
-            if (keyPath) database.createObjectStore(storeName, { keyPath });
-            else database.createObjectStore(storeName, { autoIncrement: true });
-
-            const successfullyCreatedMessage = `Store "${storeName}" successfully created!`;
-            console.log(successfullyCreatedMessage);
-            resolve(successfullyCreatedMessage);
-        };
-
-        request.onerror = (event) => {
-            const errorMessage = "Couldn't create store";
-            console.log(errorMessage);
-            reject(errorMessage);
-        };
-    });
-
-    try {
-        return await result;
-    } catch(error) {
-        console.error(error);
-        return error;
-    }
-}
-
 async function addData(database, data, objectStoreName) {
-    const result = new Promise((resolve, reject) => {
-        const transaction = database.transaction(objectStoreName, "readwrite");
-        const objectStore = transaction.objectStore(objectStoreName);
-        const action = objectStore.add(data);
-
-        action.onsuccess = (event) => {
-            const successMessage = `Data successfully added to "${objectStoreName}" store`;
-            console.log(successMessage);
-            resolve(successMessage);
-        }
-
-        action.onerror = (event) => {
-            const errorMessage = `Couldn't add the data to "${objectStoreName}" store`;
-            console.log(errorMessage);
-            reject(new Error(errorMessage));
-        }
-    });
-
     try {
-        return await result;
+        return await new Promise((resolve, reject) => {
+            const transaction = database.transaction(objectStoreName, "readwrite");
+            const objectStore = transaction.objectStore(objectStoreName);
+            const action = objectStore.add(data);
+
+            action.onsuccess = (event) => {
+                resolve(data);
+            };
+        });
     } catch (error) {
         console.error(error);
-        return error;
     }
 }
-
-main();
