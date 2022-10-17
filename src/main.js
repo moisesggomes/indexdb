@@ -23,7 +23,38 @@ class Person {
 const DB_NAME = "db-test";
 
 async function main() {
-    
+    const names = [ "mons", "carter", "emma", "percy", "ana", "ron", "harry" ];
+    let db;
+    const request = indexedDB.open(DB_NAME);
+
+    request.onerror = (event) => console.error(`Database error: ${event.target.error}`);
+
+    request.onupgradeneeded = (event) => {
+        db = request.result;
+
+        const objectStore = db.createObjectStore("users", { keyPath: "id", autoIncrement: true });
+        objectStore.createIndex( "id",   "id",   { unique: true }  );
+        objectStore.createIndex( "name", "name", { unique: false } );
+        objectStore.createIndex( "age",  "age",  { unique: false } );
+    };
+
+    request.onsuccess = (event) => {
+        db = request.result;
+        db.onerror = (event) => console.error(`Database error: ${event.target.errorCode}`);
+
+        const transaction = db.transaction([ "users" ], "readwrite");
+        const users = transaction.objectStore("users");
+        
+        // names.forEach((name) => {
+        //     const requestAddUsers = users.add({ name, age: Math.floor(Math.random() * 20) + 1 });
+
+        //     requestAddUsers.onsuccess = (event) => console.log(`${requestAddUsers.result} added!`);
+        // });
+
+        const requestGetUsers = users.getAll(IDBKeyRange.lowerBound(11), 3);
+        requestGetUsers.onsuccess = (event) => console.log(event.target.result);
+    };
+
 }
 
 
