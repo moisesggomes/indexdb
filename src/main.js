@@ -22,6 +22,26 @@ class Person {
 
 const DB_NAME = "db-test";
 
+async function main() {
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 async function openDatabase(dbName) {
     try {
         return await new Promise((resolve, reject) => {
@@ -87,7 +107,7 @@ async function getDatabaseVersion(dbName) {
     const databases = await indexedDB.databases();
     const databaseInfo = databases.find((value) => value.name == dbName);
     if (databaseInfo) return databaseInfo.version;
-    return -1;
+    return 0;
 }
 
 async function addData(database, data, objectStoreName) {
@@ -105,3 +125,5 @@ async function addData(database, data, objectStoreName) {
         console.error(error);
     }
 }
+
+main();
