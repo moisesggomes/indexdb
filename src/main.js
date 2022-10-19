@@ -4,6 +4,7 @@ class Person {
         this.age = age;
         this.id = this.#generateRandomId();
     }
+
     #generateRandomId() {
         let randomId = "";
 
@@ -15,53 +16,63 @@ class Person {
 
         return randomId;
     }
+
     #randomSequence(size) {
         return Math.random().toString(36).slice(2, 2 + size)
     }
 }
 
+
+
+
+
 const DB_NAME = "db-test";
+let db;
+
+
+
+
+
+
 
 async function main() {
-    const names = [ "mons", "carter", "emma", "percy", "ana", "ron", "harry" ];
-    let db;
-    const request = indexedDB.open(DB_NAME);
+    const people = [
+        { name: "Moises", age: 23 },
+        { name: "Carter", age: 20 },
+        { name: "Emma", age: 18 }
+    ];
 
-    request.onerror = (event) => console.error(`Database error: ${event.target.error}`);
+    console.time("timer");
 
-    request.onupgradeneeded = (event) => {
-        db = request.result;
+    db = await upgradeDatabase(DB_NAME, (database) => {
+        const peopleStore = database.createObjectStore("people", { keyPath: "id" });
+        peopleStore.createIndex("id", "id", { unique: true });
+        peopleStore.createIndex("name", "name", { unique: false });
+        peopleStore.createIndex("age", "age", { unique: false });
 
-        const objectStore = db.createObjectStore("users", { keyPath: "id", autoIncrement: true });
-        objectStore.createIndex( "id",   "id",   { unique: true }  );
-        objectStore.createIndex( "name", "name", { unique: false } );
-        objectStore.createIndex( "age",  "age",  { unique: false } );
-    };
+        peopleStore.transaction.oncomplete = (event) => {
+            const transaction = database.transaction([ "people" ], "readwrite");
+            const peopleStore = transaction.objectStore("people");
 
-    request.onsuccess = (event) => {
-        db = request.result;
-        db.onerror = (event) => console.error(`Database error: ${event.target.errorCode}`);
+            people.forEach((person) => {
+                peopleStore.add(new Person(person.name, person.age));
+            });
 
-        const transaction = db.transaction([ "users" ], "readwrite");
-        const users = transaction.objectStore("users");
-        
-        // names.forEach((name) => {
-        //     const requestAddUsers = users.add({ name, age: Math.floor(Math.random() * 20) + 1 });
+            transaction.oncomplete = (event) => {
+                const transaction = database.transaction([ "people" ], "readonly");
+                const peopleStore = transaction.objectStore("people");
+                const getPeopleRequest = peopleStore.getAll();
 
-        //     requestAddUsers.onsuccess = (event) => console.log(`${requestAddUsers.result} added!`);
-        // });
+                getPeopleRequest.onsuccess = (event) => {
+                    console.log(getPeopleRequest.result);
 
-        const requestGetUsers = users.getAll(IDBKeyRange.lowerBound(11), 3);
-        requestGetUsers.onsuccess = (event) => console.log(event.target.result);
-    };
-
+                    console.timeEnd("timer");
+                }
+            }
+        }
+    });
+    console.log(db);
 }
-
-
-
-
-
-
 
 
 
@@ -89,49 +100,42 @@ async function openDatabase(dbName) {
 }
 
 function setGenericErrorHandlerToDatabase(db) {
-    db.onerror = (event) => console.error(`Database error: ${event.target.error}`);
+    db.onerror = (event) => console.error(`Database error: ${event.target.result}`);
 }
 
-async function createObjectStore(database, storeName, options) {
+async function upgradeDatabase(
+    database,
+    doStuff = (database, end) => end(database)
+) {
     try {
         return await new Promise(async (resolve, reject) => {
-            const actualDBVersion = await getDatabaseVersion(database.name);
-            database.close();
-            const request = indexedDB.open(database.name, actualDBVersion + 1);
+            let dbName;
+            if (typeof database === "string") {
+                dbName = database;
+            } else {
+                dbName = database.name;
+                database.close();
+            }
+
+            const actualDBVersion = await getDatabaseVersion(dbName);
+            const request = indexedDB.open(dbName, actualDBVersion + 1);
+            let db;
 
             request.onupgradeneeded = (event) => {
-                const database = request.result;
-                setGenericErrorHandlerToDatabase(database);
-                database.createObjectStore(storeName, options);
-                resolve(database);
+                db = request.result;
+                setGenericErrorHandlerToDatabase(db);
+
+                doStuff(db, resolve);
             };
+
             request.onerror = (event) => {
                 console.error("Couldn't update the database");
                 reject();
             };
-        });
-    } catch (error) {}
-}
 
-async function deleteObjectStore(database, storeName) {
-    try {
-        return await new Promise(async (resolve, reject) => {
-            const actualDBVersion = await getDatabaseVersion(database.name);
-            database.close();
-            const request = indexedDB.open(database.name, actualDBVersion + 1);
-
-            request.onupgradeneeded = (event) => {
-                const database = request.result;
-                setGenericErrorHandlerToDatabase(database);
-                database.deleteObjectStore(storeName);
-                resolve(database);
-            };
-            request.onerror = (event) => {
-                console.error("Couldn't delete the database");
-                reject();
-            };
+            request.onsuccess = (event) => resolve(db);
         });
-    } catch (error) {}
+    } catch (error) { console.log(error) }
 }
 
 async function getDatabaseVersion(dbName) {
@@ -141,10 +145,14 @@ async function getDatabaseVersion(dbName) {
     return 0;
 }
 
-async function addData(database, data, objectStoreName) {
+async function addDataToObjectStore(
+    database,
+    data,
+    objectStoreName
+) {
     try {
         return await new Promise((resolve, reject) => {
-            const transaction = database.transaction(objectStoreName, "readwrite");
+            const transaction = database.transaction([ objectStoreName ], "readwrite");
             const objectStore = transaction.objectStore(objectStoreName);
             const action = objectStore.add(data);
 
