@@ -27,7 +27,7 @@ class Person {
 
 
 const DB_NAME = "db-test";
-let DATABASE;
+let DB;
 
 
 
@@ -39,44 +39,45 @@ let DATABASE;
 
 
 async function main() {
-    const people = [
-        { name: "Moises", age: 23 },
-        { name: "Carter", age: 20 },
-        { name: "Emma"  , age: 18 }
-    ];
+    DB = await openDatabase(DB_NAME);
+    let people;
 
-    DATABASE = await upgradeDatabase(DB_NAME, (database, end) => {
-        const peopleStore = database.createObjectStore("people", { keyPath: "id" });
-        // peopleStore.createIndex("id"  , "id"  , { unique: true  });
-        // peopleStore.createIndex("name", "name", { unique: false });
-        // peopleStore.createIndex("age" , "age" , { unique: false });
+    const getPeopleTransaction = DB.transaction([ "people" ], "readonly");
+    const peopleObjectStore = getPeopleTransaction.objectStore("people");
+    const getPeopleRequest = peopleObjectStore.getAll();
 
-        peopleStore.transaction.oncomplete = (event) => {
-            const transaction = database.transaction([ "people" ], "readwrite");
-            const peopleStore = transaction.objectStore("people");
+    getPeopleRequest.onsuccess = (event) => {
+        people=event.target.result
+    };
 
-            people.forEach((person) => {
-                peopleStore.add(new Person(person.name, person.age));
-            });
+    getPeopleRequest.onerror = (event) => console.error(event.error);
 
-            transaction.oncomplete = (event) => {
-                const transaction = database.transaction([ "people" ], "readonly");
-                const peopleStore = transaction.objectStore("people");
-                const getPeopleRequest = peopleStore.getAll();
+    getPeopleTransaction.oncomplete = async (event) => {
+        DB = await upgradeDatabase(
+            DB,
+            (db, end) => {
+                db.deleteObjectStore("people");
+                const peopleObjectStore = db.createObjectStore("people", { autoIncrement: true });
+                peopleObjectStore.createIndex("id"  , "id"  , { unique: true  });
+                peopleObjectStore.createIndex("name", "name", { unique: false });
+                peopleObjectStore.createIndex("age" , "age" , { unique: false });
+            },
+            (db, end) => {
+                const transaction = db.transaction([ "people" ], "readwrite");
+                const peopleObjectStore = transaction.objectStore("people");
 
-                getPeopleRequest.onsuccess = (event) => {
-                    console.log("people:", getPeopleRequest.result);
-                    end(database);
-                }
+                people.forEach((value, index) => {
+                    peopleObjectStore.add(value);
+                });
+
+                // (new IDBObjectStore()).get()
+                const getEmmaRequest = peopleObjectStore.get(1);
+                getEmmaRequest.onsuccess = (event) => console.log(event.target.result);
+
+                end(db);
             }
-        }
-    });
-
-    // db = await upgradeDatabase(db, (database, end) => {
-    //     database.deleteObjectStore("people");
-    // });
-
-    console.log(DATABASE);
+        );
+    };
 }
 
 
@@ -103,22 +104,25 @@ async function openDatabase(dbName, version) {
                 resolve(request.result);
             };
         });
-    } catch (error) { console.log("Error:", error) }
+    } catch (error) { console.log(error) }
 }
 
 function setGenericErrorHandlerToDatabase(db) {
     db.onerror = (event) => console.error(`Database error: ${event.target.result}`);
 }
 
-async function upgradeDatabase(db, doStuff=(db, end)=>end(db)) {
+async function upgradeDatabase(db, upgradeneeded=(db, end)=>end(db), success) {
     try {
         return await new Promise(async (resolve, reject) => {
-            const request = indexedDB.open(db.name, await getDatabaseVersion(dbName) + 1);
+            db.close();
+            const request = indexedDB.open(db.name, await getDatabaseVersion(db.name) + 1);
 
             request.onupgradeneeded = (event) => {
-                setGenericErrorHandlerToDatabase(request.result);
-                doStuff(request.result, resolve);
+                setGenericErrorHandlerToDatabase(event.target.result);
+                upgradeneeded(event.target.result, resolve);
             };
+
+            if (success) request.onsuccess = (event) => success(event.target.result, resolve);
         });
     } catch (error) { console.log("Error:", error) }
 }
