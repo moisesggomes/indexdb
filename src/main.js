@@ -2,24 +2,24 @@ class Person {
     constructor(name, age) {
         this.name = name;
         this.age = age;
-        this.id = this.#generateRandomId();
+        this.id = crypto.randomUUID();
     }
 
-    #generateRandomId() {
-        let randomId = "";
+    // #generateRandomId() {
+    //     let randomId = "";
 
-        randomId += this.#randomSequence(8) + "-";
-        randomId += this.#randomSequence(4) + "-";
-        randomId += this.#randomSequence(4) + "-";
-        randomId += this.#randomSequence(4) + "-";
-        randomId += this.#randomSequence(12);
+    //     randomId += this.#randomSequence(8) + "-";
+    //     randomId += this.#randomSequence(4) + "-";
+    //     randomId += this.#randomSequence(4) + "-";
+    //     randomId += this.#randomSequence(4) + "-";
+    //     randomId += this.#randomSequence(12);
 
-        return randomId;
-    }
+    //     return randomId;
+    // }
 
-    #randomSequence(size) {
-        return Math.random().toString(36).slice(2, 2 + size)
-    }
+    // #randomSequence(size) {
+    //     return Math.random().toString(36).slice(2, 2 + size)
+    // }
 }
 
 
@@ -40,24 +40,27 @@ let DB;
 
 async function main() {
     DB = await openDatabase(DB_NAME);
-    let people;
+    let people = [
+        new Person("Moises", 23),
+        new Person("Ana", 18),
+        new Person("Carter", 20),
+        new Person("David", 24),
+        new Person("Ana", 20),
+        new Person("Ana", 16),
+    ];
 
     const getPeopleTransaction = DB.transaction([ "people" ], "readonly");
     const peopleObjectStore = getPeopleTransaction.objectStore("people");
-    const getPeopleRequest = peopleObjectStore.getAll();
 
-    getPeopleRequest.onsuccess = (event) => {
-        people=event.target.result
-    };
-
-    getPeopleRequest.onerror = (event) => console.error(event.error);
+    // const getPeopleRequest = peopleObjectStore.getAll().onsuccess = (event) => people=event.target.result;
+    // getPeopleRequest.onerror = (event) => console.error(event.error);
 
     getPeopleTransaction.oncomplete = async (event) => {
         DB = await upgradeDatabase(
             DB,
             (db, end) => {
                 db.deleteObjectStore("people");
-                const peopleObjectStore = db.createObjectStore("people", { autoIncrement: true });
+                const peopleObjectStore = db.createObjectStore("people", { autoIncrement: true, keyPath: "id" });
                 peopleObjectStore.createIndex("id"  , "id"  , { unique: true  });
                 peopleObjectStore.createIndex("name", "name", { unique: false });
                 peopleObjectStore.createIndex("age" , "age" , { unique: false });
@@ -67,12 +70,17 @@ async function main() {
                 const peopleObjectStore = transaction.objectStore("people");
 
                 people.forEach((value, index) => {
-                    peopleObjectStore.add(value);
+                    peopleObjectStore.add(value).onerror = (event) => event.stopPropagation();
                 });
-
-                // (new IDBObjectStore()).get()
-                const getEmmaRequest = peopleObjectStore.get(1);
-                getEmmaRequest.onsuccess = (event) => console.log(event.target.result);
+                
+                // (new IDBIndex()).getAll()
+                peopleObjectStore.index("age").openCursor(IDBKeyRange.upperBound(18)).onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        console.log("Data:", cursor.value);
+                        cursor.continue();
+                    }
+                };
 
                 end(db);
             }
